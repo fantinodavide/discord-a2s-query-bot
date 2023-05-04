@@ -1,0 +1,17 @@
+{
+  "name": "discord-a2s-query-bot",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Fantino Davide",
+  "license": "ISC",
+  "dependencies": {
+    "discord.js": "^14.10.2",
+    "dotenv": "^16.0.3",
+    "gamedig": "^4.0.6"
+  }
+}
