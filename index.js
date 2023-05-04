@@ -64,19 +64,18 @@ async function main() {
             )
     ]
 
-    for (let t of [ 1, 2, 3 ])
-        client.application.commands.create(...commands)
+    client.application.commands.create(...commands)
 
     client.on('interactionCreate', async interaction => {
-        await interaction.deferReply();
         if (interaction.isCommand()) {
+            await interaction.deferReply();
             const command = client.slashCommands.get(interaction.commandName);
             const args = interaction.options.data;
             console.log(args);
             try {
                 await runQuery(args, interaction);
             } catch (error) {
-                interaction.editReply({ content: `Query failed. Error: \`\`\`${error}\`\`\``, ephemeral: true })
+                await sendErrorMessage(interaction, error)
             }
         } else if (interaction.isButton()) {
             const intId = interaction.customId.split('-');
@@ -87,17 +86,19 @@ async function main() {
                 { name: 'game', type: 3, value: intId[ 3 ] },
                 { name: 'show_players', type: 3, value: intId[ 4 ].match(/true/) ? true : false }
             ]
+            const updateMode = command == 'queryUpdate';
+            if (!updateMode) await interaction.deferReply();
             // const args = interaction.options.data;
             try {
-                await runQuery(args, interaction);
+                await runQuery(args, interaction, updateMode);
             } catch (error) {
-                interaction.editReply({ content: `Query failed. Error: \`\`\`${error}\`\`\``, ephemeral: true })
+                await sendErrorMessage(error)
             }
         }
     });
 }
 
-async function runQuery(args, interaction) {
+async function runQuery(args, interaction, update = false) {
     const queryData = {
         type: args.find(a => a.name == 'game').value || 'squad',
         host: args.find(a => a.name == 'ip').value,
@@ -110,12 +111,15 @@ async function runQuery(args, interaction) {
 
     console.log({ ...queryData, show_players: showPlayers });
 
-    const res = await gamedig.query(queryData).catch(r => {
-        interaction.editReply({ content: `Query failed. Error: \`\`\`${r}\`\`\``, ephemeral: true })
+    const res = await gamedig.query(queryData).catch(async r => {
+        await sendErrorMessage(interaction, r)
     })
     if (!res) return;
-    // interaction.reply({ content: 'ciao', ephemeral: true })
-    interaction.editReply({
+
+    // console.log(interaction.message, interaction.message.edit)
+
+    // await interaction.update();
+    const message = {
         embeds: [
             {
                 title: res.name,
@@ -149,7 +153,7 @@ async function runQuery(args, interaction) {
                     },
                     showPlayers ? {
                         name: 'Players',
-                        value: `\`\`\`${res.players.map(p => p.name).join('\n')}\`\`\``,
+                        value: `\`\`\`\n${res.players.map(p => p.name).join('\n')}\n\`\`\``,
                         inline: false
                     } : null
                 ].filter(f => f != null)
@@ -159,12 +163,38 @@ async function runQuery(args, interaction) {
             new ActionRowBuilder()
                 .addComponents(
                     new ButtonBuilder()
-                        .setCustomId(`query-${queryData.host}-${queryData.port}-${queryData.type}-${showPlayers}`)
-                        .setLabel(`Resend`)
+                        .setCustomId(`queryUpdate-${queryData.host}-${queryData.port}-${queryData.type}-${showPlayers}`)
+                        .setLabel(`Update`)
                         .setStyle(ButtonStyle.Primary)
                 )
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`query-${queryData.host}-${queryData.port}-${queryData.type}-${showPlayers}`)
+                        .setLabel(`Resend`)
+                        .setStyle(ButtonStyle.Secondary)
+                )
         ]
-    });
+    }
+
+    return discordSendUpdateMessage(interaction, update, message)
+}
+
+async function sendErrorMessage(interaction, error) {
+    const data = {
+        embeds: [ {
+            title: 'Query failed',
+            color: Colors.Red,
+            description: `\`\`\`${error}\`\`\``
+        } ]
+    }
+    await discordSendUpdateMessage(interaction, false, data)
+}
+
+async function discordSendUpdateMessage(interaction, update, messageContent) {
+    console.log("interac", messageContent)
+    if (interaction.message) messageContent.components = interaction.message.components;
+    if (update) interaction.update(messageContent)
+    else interaction.editReply(messageContent);
 }
 
 main();
