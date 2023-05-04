@@ -6,7 +6,7 @@ import { REST } from '@discordjs/rest';
 import { Routes } from 'discord-api-types/v9';
 dotenv.config()
 
-const token = 'MTEwMzcwNTE0OTkxMTg3OTgxMg.GDmlzf.X3zYpzJMRFTISA3RvXGhwGLHlbLzEgisciNKRk';
+const token = process.env.DISCORD_TOKEN;
 
 async function main() {
     const supportedGames = gamedig.getInstance().queryRunner.gameResolver.games.filter((g, i) => g.pretty == 'Squad' /*|| i < 24*/).sort((a, b) => a.pretty == 'Squad' ? -Infinity : a.pretty - b.pretty).map(c => ({ name: c.pretty, value: c.keys[ 0 ] }));
@@ -47,14 +47,20 @@ async function main() {
                 option
                     .setName('port')
                     .setRequired(true)
-                    .setDescription('port of the gameserver')
+                    .setDescription('Port of the gameserver')
             )
             .addStringOption(option =>
                 option
                     .setName('game')
-                    .setRequired(false)
-                    .setDescription('IP of the gameserver')
+                    .setRequired(true)
+                    .setDescription('Game of the server')
                     .setChoices(...supportedGames)
+            )
+            .addBooleanOption(option =>
+                option
+                    .setName('show_players')
+                    .setRequired(false)
+                    .setDescription('Include player list')
             )
     ]
 
@@ -71,6 +77,8 @@ async function main() {
                 host: args.find(a => a.name == 'ip').value,
                 port: args.find(a => a.name == 'port').value
             }
+            let showPlayers = args.find(a => a.name == 'show_players')?.value
+            if (showPlayers == undefined) showPlayers = false;
             console.log(queryData);
             const res = await gamedig.query(queryData)
             // interaction.reply({ content: 'ciao', ephemeral: true })
@@ -79,6 +87,7 @@ async function main() {
                     {
                         title: res.name,
                         color: Colors.Green,
+                        thumbnail: { url: `https://squadmaps.com/img/maps/full_size/${res.map}.jpg` },
                         fields: [
                             {
                                 name: 'Map',
@@ -105,12 +114,12 @@ async function main() {
                                 value: `\`\`\`${res.raw.rules.GameVersion_s}\`\`\``,
                                 inline: true
                             },
-                            {
+                            showPlayers ? {
                                 name: 'Players',
                                 value: `\`\`\`${res.players.map(p => p.name).join('\n')}\`\`\``,
                                 inline: false
-                            }
-                        ]
+                            } : null
+                        ].filter(f => f != null)
                     }
                 ]
             });
